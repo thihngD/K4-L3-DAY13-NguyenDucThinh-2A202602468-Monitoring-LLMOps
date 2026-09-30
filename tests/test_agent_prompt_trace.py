@@ -16,16 +16,31 @@ class ManagedPrompt:
         )
 
 
+class RecordingObservation:
+    def __init__(self) -> None:
+        self.updates: list[dict] = []
+
+    def update(self, **kwargs) -> None:
+        self.updates.append(kwargs)
+
+
 class RecordingLangfuseClient:
     def __init__(self) -> None:
         self.prompt = ManagedPrompt()
         self.span_updates: list[dict] = []
+        self.observations: list[RecordingObservation] = []
 
     def get_prompt(self, name: str, **kwargs):
         return self.prompt
 
     def update_current_span(self, **kwargs) -> None:
         self.span_updates.append(kwargs)
+
+    @contextmanager
+    def start_as_current_observation(self, **kwargs):
+        observation = RecordingObservation()
+        self.observations.append(observation)
+        yield observation
 
 
 def test_agent_records_prompt_version_with_v4_observation_api(monkeypatch) -> None:
