@@ -8,7 +8,7 @@
 - **MSSV: 2A202602468**
 - **Lớp:** K4-L3B
 - **Repository URL: https://github.com/thihngD/K4-L3-DAY13-NguyenDucThinh-2A202602468-Monitoring-LLMOps**
-- **Commit SHA cuối:**
+- **Commit SHA cuối:** `97aa02832a0251f7c79825fcca6a2098fd108348`
 - **Challenge ID:** `day13-k4-l3b-monitoring-llmops-v1`
 - **Tên project Langfuse cá nhân:** `day13-k4-l3b-2A202602468`
 
@@ -18,7 +18,7 @@
 
 | Evidence | Đường dẫn |
 |---|---|
-| Pytest cuối | `evidence/01-pytest.png` (PROVISIONAL — cần chụp/tạo lại sau commit cuối để đúng mã commit thật) |
+| Pytest cuối | `evidence/01-pytest.png` |
 | Log validator | `evidence/02-log-validator.png` |
 | Dashboard validator | `evidence/03-dashboard-validator.png` |
 | Structured log | `evidence/04-structured-log.png` (`correlation_id=req-1a2b3c4d`) |
@@ -41,7 +41,7 @@
 |---|---|---|---|
 | `validate_logs.py` | 30/100 (FAILED: missing fields, correlation ID, enrichment; PASSED: PII scrubbing) | 100/100 (PASSED cả 4 mục) — `evidence/02-log-validator.png` | CP1 xong: correlation ID, enrichment, PII scrubbing |
 | `validate_dashboard.py` | 6/6 panel hợp lệ | 6/6 panel hợp lệ — `evidence/03-dashboard-validator.png` | Dashboard contract đã đủ 6 panel từ đầu |
-| `pytest` | 22 passed | 24 passed — `evidence/01-pytest.png` | Thêm 2 test CCCD/thẻ thanh toán cho `app/pii.py`; ảnh cần chụp/tạo lại sau commit cuối để có đúng mã commit |
+| `pytest` | 22 passed | 24 passed — `evidence/01-pytest.png` (commit `97aa028`) | Thêm 2 test CCCD/thẻ thanh toán cho `app/pii.py` |
 | Số traces hợp lệ | | 51 root trace (`isRootObservation=true`) — `evidence/06-trace-list.png` | Vượt tối thiểu 10 traces yêu cầu |
 | Số PII leak | 0 (validator báo 0, nhưng do thiếu field chứ chưa xác nhận scrub thật) | 0 — xác nhận cả 4 loại (email/điện thoại/CCCD/thẻ) trong cùng 1 message qua `evidence/05-pii-redaction.png` | |
 | Latency P95 / TTFT P95 | Chưa đo (dashboard chưa parse do log thiếu field) | P95 ≈ 266ms / TTFT P95 ≈ 54ms — `evidence/11-dashboard-overview.png` | Đo bằng `scripts/render_dashboard.py` trên mẫu 20 request |
