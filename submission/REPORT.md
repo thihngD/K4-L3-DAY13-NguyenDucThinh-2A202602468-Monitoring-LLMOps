@@ -95,20 +95,26 @@
 
 ## 8. Giải thích và tự đánh giá
 
-- **Một quyết định kỹ thuật quan trọng và lý do:**
-- **Một lỗi/blocker đã gặp:**
-- **Cách tìm nguyên nhân và xử lý:**
-- **Cách hiểu luồng Metrics → Logs → Traces:**
-- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:**
-- **Điều quan trọng nhất đã học:**
-- **Hạn chế hoặc phần chưa hoàn thành, nếu có:**
+- **Một quyết định kỹ thuật quan trọng và lý do:** Dùng đúng API `start_as_current_observation` của Langfuse SDK v4 để tạo child observation cho retrieval và generation, thay vì tự ghi log thủ công. Nhờ vậy waterfall lên đúng cây cha-con thật trên Langfuse, sau này CP3 mới khoanh vùng được span nào chậm thay vì chỉ đoán.
+- **Một lỗi/blocker đã gặp:** Sau khi thêm child observation, test `test_agent_prompt_trace.py` báo lỗi `AttributeError: 'RecordingLangfuseClient' object has no attribute 'start_as_current_observation'`. Một blocker khác phát hiện muộn hơn: ảnh chụp metadata trace (`08a`, `08b`) vô tình để lộ `public_key` của Langfuse trong phần metadata mở rộng.
+- **Cách tìm nguyên nhân và xử lý:** Với lỗi test, đọc traceback thấy mock client trong test cũ chỉ có `get_prompt`/`update_current_span`, chưa theo kịp API mới nên bổ sung thêm method giả lập tương ứng vào mock. Với ảnh lộ key, rà lại từng ảnh Langfuse trước khi commit theo đúng cảnh báo trong `RULES.md`, phát hiện dòng `scope.attributes.public_key` bị lọt vào khung hình rồi cắt ảnh bỏ phần đó trước khi đưa vào commit.
+- **Cách hiểu luồng Metrics → Logs → Traces:** Dashboard cho thấy P95 latency nhảy từ ~152ms lên ~2653ms trong một khoảng thời gian cụ thể — đó là tín hiệu "có gì đó sai" nhưng chưa biết request nào. Lọc `data/logs.jsonl` theo `latency_ms` cao thì ra được `correlation_id` của request bất thường. Mở đúng trace có `correlation_id` đó mới thấy rõ span `retrieval` chiếm gần hết thời gian trong khi `generation` vẫn bình thường — kết luận root cause chỉ chắc chắn khi cả ba lớp cùng khớp nhau, không dừng ở một lớp.
+- **Vai trò của prompt version, token/cost, SLO hoặc rollback trong vận hành LLM:** Gắn `prompt_version`/`prompt_label` vào từng trace giúp biết chính xác một câu trả lời tệ hay latency tăng có phải do bản prompt mới hay không, và rollback chỉ là đổi label chứ không cần deploy lại code. Theo dõi `tokens_in/out` và `cost_usd` theo từng request giúp phát hiện chi phí tăng bất thường trước khi thành vấn đề tài chính. SLO/error budget biến "hệ thống ổn không" từ cảm tính thành một con số cụ thể để quyết định có nên tạm dừng thay đổi rủi ro hay không.
+- **Điều quan trọng nhất đã học:** Một alert đặt ngưỡng theo cảm tính có thể không bắt được đúng sự cố thật — ngưỡng `HighLatencyP95 > 3000ms` không hề kích hoạt trong lúc incident `rag_slow` khiến latency lên tới 2653ms, vì ngưỡng đó vẫn còn cao hơn con số thực tế. Ngưỡng alert cần được kiểm chứng bằng dữ liệu incident thật, không chỉ suy đoán từ SLO tổng.
+- **Hạn chế hoặc phần chưa hoàn thành, nếu có:** Dashboard runtime hiện là ảnh chụp một lần từ script local, chưa phải dashboard sống có thể theo dõi realtime. Ngưỡng của alert `HighLatencyP95` chưa được chỉnh lại dù đã phát hiện lỗ hổng ở trên.
 
 ## 9. Checklist trước khi nộp
 
-- [ ] Kết quả và evidence thuộc commit SHA cuối.
-- [ ] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
-- [ ] Incident evidence nối đúng metric → log → trace.
-- [ ] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
-- [ ] Repository chạy lại được theo README.
-- [ ] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
-- [ ] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
+- [x] Kết quả và evidence thuộc commit SHA cuối.
+- [x] Tất cả ảnh/output mở được bằng đường dẫn tương đối.
+- [x] Incident evidence nối đúng metric → log → trace.
+- [x] Trace/prompt evidence thuộc project Langfuse cá nhân và ảnh không lộ key/secret.
+- [x] Repository chạy lại được theo README.
+- [x] Không có secret, API key, PII thô hoặc evidence của người khác/lớp khác.
+- [x] URL repo và commit SHA cuối đã được nộp trên LMS/Codelabs.
+
+## 10. Bonus
+
+- **Cost optimization before/after (`scripts/compare_prompt_cost.py`):** so sánh cùng 10 query trong `data/sample_queries.jsonl` giữa template prompt hiện tại và một template rút gọn (chỉ đề xuất phân tích, không đổi `DEFAULT_PROMPT_TEMPLATE` thật vì đó là contract đã chấm ở CP2). Input token giảm ~10-12% mỗi request. Vì `FakeLLM` sinh `output_tokens` ngẫu nhiên (80-180) không phụ thuộc prompt và chi phí output ($15/1M) cao hơn input ($3/1M) nhiều lần, tổng cost chỉ giảm **0.6%** khi giữ cố định output_tokens=130 để cô lập đúng phần input — evidence `evidence/bonus-02-cost-optimization.png`. Ghi nhận trung thực: mock hiện tại không phản ánh đúng lợi ích thật của việc rút gọn prompt trên LLM thật.
+- **Automation — secret/PII scan + CI (`scripts/scan_secrets.py`, `.github/workflows/ci.yml`):** script quét toàn bộ file text trong repo tìm pattern key Langfuse (`sk-lf-`/`pk-lf-`), token dạng Bearer, AWS key và cả 4 loại PII (dùng lại `app.pii.PII_PATTERNS`) — chính là loại lỗi thực tế đã gặp khi ảnh `08a/08b` lộ `public_key` trước khi commit. Kết quả sạch: `evidence/bonus-01-secret-scan.png`. CI (`.github/workflows/ci.yml`) tự động chạy quét secret, `pytest -q`, `load_test.py`, `validate_logs.py`, `validate_dashboard.py` trên mỗi lần push — tái hiện đúng checklist "Kiểm tra trước khi nộp" trong README, không cần Langfuse key (test cục bộ đã xác nhận app chạy đúng khi thiếu `.env`, `tracing_enabled=false`).
+- **Audit log riêng (`app/audit_log.py`, `scripts/query_audit_log.py`):** log riêng biệt (`data/audit.jsonl`, không qua pipeline scrub/rotate của structlog) ghi lại hành động nhạy cảm — bật/tắt incident qua `/incidents/{name}/enable|disable`. Schema: `ts, action, target, result, correlation_id`. Retention: tài liệu hoá chính sách giữ 90 ngày (chưa tự động hoá rotate, ghi rõ trong docstring). Ví dụ truy vấn theo `action`/`target`/`result` trong `scripts/query_audit_log.py` — evidence `evidence/bonus-03-audit-log.png` cho thấy cả trường hợp thành công lẫn lỗi (`incident.enable` với tên incident không tồn tại) đều được ghi lại.
